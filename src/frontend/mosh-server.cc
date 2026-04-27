@@ -645,7 +645,11 @@ static int run_server( const char *desired_ip, const char *desired_port,
   return 0;
 }
 
-static void serve( int host_fd, Terminal::Complete &terminal, ServerConnection &network, long network_timeout, long network_signaled_timeout )
+static void serve( int host_fd,
+		   Terminal::Complete &terminal,
+		   ServerConnection &network,
+		   long network_timeout,
+		   long network_signaled_timeout )
 {
   /* scale timeouts */
   const uint64_t network_timeout_ms = static_cast<uint64_t>( network_timeout ) * 1000;
@@ -676,7 +680,6 @@ static void serve( int host_fd, Terminal::Complete &terminal, ServerConnection &
   #endif
 
   bool child_released = false;
-
   while ( true ) {
     try {
       static const uint64_t timeout_if_no_client = 60000;
@@ -876,7 +879,7 @@ static void serve( int host_fd, Terminal::Complete &terminal, ServerConnection &
 	  break;
 	}
       }
-      
+
       /* quit if our shutdown has been acknowledged */
       if ( network.shutdown_in_progress() && network.shutdown_acknowledged() ) {
 	break;

@@ -271,6 +271,15 @@ void TransportSender<MyState>::update_assumed_receiver_state( void )
 {
   uint64_t now = timestamp();
 
+  /* During shutdown, anchor retransmits to the last state we know the
+     receiver acknowledged. If we reference an optimistic unacknowledged
+     state here, the peer can discard every shutdown packet and never
+     learn that the session ended. */
+  if ( shutdown_in_progress ) {
+    assumed_receiver_state = sent_states.begin();
+    return;
+  }
+
   /* start from what is known and give benefit of the doubt to unacknowledged states
      transmitted recently enough ago */
   assumed_receiver_state = sent_states.begin();

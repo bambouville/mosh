@@ -289,6 +289,13 @@ std::string Display::new_frame( bool initialized, const Framebuffer &last, const
   /* have renditions changed? */
   frame.update_rendition( f.ds.get_renditions(), !initialized );
 
+  /* has application cursor mode changed? */
+  if ( (!initialized)
+       || (f.ds.application_mode_cursor_keys
+           != frame.last_frame.ds.application_mode_cursor_keys) ) {
+    frame.append( f.ds.application_mode_cursor_keys ? "\033[?1h" : "\033[?1l" );
+  }
+
   /* has bracketed paste mode changed? */
   if ( (!initialized)
        || (f.ds.bracketed_paste != frame.last_frame.ds.bracketed_paste) ) {
