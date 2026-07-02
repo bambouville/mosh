@@ -380,6 +380,7 @@ namespace Terminal {
     title_type icon_name;
     title_type window_title;
     title_type clipboard;
+    title_type cwd;
     unsigned int bell_count;
     bool title_initialized; /* true if the window title has been set via an OSC */
 
@@ -453,9 +454,11 @@ namespace Terminal {
     void set_icon_name( const title_type &s ) { icon_name = s; }
     void set_window_title( const title_type &s ) { window_title = s; }
     void set_clipboard( const title_type &s ) { clipboard = s; }
+    void set_cwd( const title_type &s ) { cwd = s; }
     const title_type & get_icon_name( void ) const { return icon_name; }
     const title_type & get_window_title( void ) const { return window_title; }
     const title_type & get_clipboard( void ) const { return clipboard; }
+    const title_type & get_cwd( void ) const { return cwd; }
 
     void prefix_window_title( const title_type &s );
 
@@ -469,7 +472,7 @@ namespace Terminal {
 
     bool operator==( const Framebuffer &x ) const
     {
-      return ( rows == x.rows ) && ( window_title == x.window_title ) && ( clipboard  == x.clipboard ) && ( bell_count == x.bell_count ) && ( ds == x.ds );
+      return ( rows == x.rows ) && ( window_title == x.window_title ) && ( clipboard  == x.clipboard ) && ( cwd == x.cwd ) && ( bell_count == x.bell_count ) && ( ds == x.ds );
     }
   };
 }

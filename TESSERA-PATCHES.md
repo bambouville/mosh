@@ -26,6 +26,15 @@ reconnects or roams onto a live session could be left in the wrong cursor-key
 mode, so the arrow keys emitted the wrong escape sequences. *(Compiled into the
 Tessera app.)*
 
+### `src/terminal/{terminalfunctions.cc,terminalframebuffer.{cc,h},terminaldisplay.cc}` — sync OSC 7 current working directory
+
+The terminal emulator now recognizes OSC 7 (`ESC ] 7 ; file://host/path ST`),
+stores the CWD payload on the framebuffer with the same wide-character storage
+and framebuffer-diff behavior as OSC 52 clipboard data, and re-emits OSC 7 from
+`Display::new_frame` when that payload changes. This lets Tessera's SwiftTerm
+frontend receive shell working-directory reports during plain mosh sessions.
+*(Compiled into the Tessera app.)*
+
 ### `src/network/transportsender-impl.h` — anchor retransmits during shutdown
 
 `TransportSender::update_assumed_receiver_state` now, while a shutdown is in

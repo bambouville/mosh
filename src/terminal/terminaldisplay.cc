@@ -122,6 +122,18 @@ std::string Display::new_frame( bool initialized, const Framebuffer &last, const
     frame.append( '\007' );
   }
 
+  /* has current working directory changed? */
+  if (f.get_cwd() != frame.last_frame.get_cwd()) {
+    frame.append( "\033]7;" );
+    const title_type &cwd( f.get_cwd() );
+    for ( title_type::const_iterator i = cwd.begin();
+          i != cwd.end();
+          i++ ) {
+      frame.append( *i );
+    }
+    frame.append( "\033\\" );
+  }
+
   /* has reverse video state changed? */
   if ( (!initialized)
        || (f.ds.reverse_video != frame.last_frame.ds.reverse_video) ) {
