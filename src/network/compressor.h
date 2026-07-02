@@ -33,6 +33,7 @@
 #ifndef COMPRESSOR_H
 #define COMPRESSOR_H
 
+#include <mutex>
 #include <string>
 
 namespace Network {
@@ -41,6 +42,14 @@ namespace Network {
     static const int BUFFER_SIZE = 2048 * 2048; /* effective limit on terminal size */
 
     unsigned char buffer[BUFFER_SIZE];
+
+    /* Tessera: get_compressor() is a process-wide singleton. Upstream
+       mosh runs one session per process, so the shared scratch buffer
+       is safe; Tessera embeds several MoshClients in one app, whose
+       transports (de)compress concurrently from their own dispatch
+       queues. Unsynchronized, they race on `buffer` and a torn
+       decompression aborts in FragmentAssembly::get_assembly. */
+    std::mutex mutex;
 
   public:
   Compressor() : buffer() {}

@@ -40,6 +40,7 @@ using std::string;
 
 string Compressor::compress_str( const string &input )
 {
+  std::lock_guard<std::mutex> lock( mutex ); /* Tessera: see compressor.h */
   long unsigned int len = BUFFER_SIZE;
   dos_assert( Z_OK == compress( buffer, &len,
 				reinterpret_cast<const unsigned char *>( input.data() ),
@@ -49,6 +50,7 @@ string Compressor::compress_str( const string &input )
 
 string Compressor::uncompress_str( const string &input )
 {
+  std::lock_guard<std::mutex> lock( mutex ); /* Tessera: see compressor.h */
   long unsigned int len = BUFFER_SIZE;
   dos_assert( Z_OK == uncompress( buffer, &len,
 				  reinterpret_cast<const unsigned char *>( input.data() ),

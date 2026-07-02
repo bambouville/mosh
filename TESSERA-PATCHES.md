@@ -35,6 +35,17 @@ and framebuffer-diff behavior as OSC 52 clipboard data, and re-emits OSC 7 from
 frontend receive shell working-directory reports during plain mosh sessions.
 *(Compiled into the Tessera app.)*
 
+### `src/network/compressor.{h,cc}` — serialize the shared Compressor singleton
+
+`get_compressor()` returns one process-wide `Compressor` whose scratch buffer
+both `compress_str` and `uncompress_str` reuse. Upstream mosh runs a single
+session per process, so this is safe; Tessera embeds several mosh clients in
+one app, and two transports (de)compressing concurrently from their own
+dispatch queues raced on the buffer — a torn decompression then failed the
+`Instruction` parse and aborted in `FragmentAssembly::get_assembly`. Both
+methods now hold a `std::mutex` for the duration of the zlib call.
+*(Compiled into the Tessera app.)*
+
 ### `src/network/transportsender-impl.h` — anchor retransmits during shutdown
 
 `TransportSender::update_assumed_receiver_state` now, while a shutdown is in
