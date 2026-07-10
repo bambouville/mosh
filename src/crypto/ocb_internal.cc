@@ -484,9 +484,22 @@ typedef struct {
 	uint8_t b[4096];
 } KEY;
 
-static KEY *KEY_new() { return new KEY; }
+static KEY *KEY_new() { return new KEY{}; }
 
-static void KEY_delete(KEY *key) { delete key; }
+static void KEY_delete(KEY *key) {
+	if (key == NULL) {
+		return;
+	}
+	if (key->ref != NULL) {
+		CCCryptorRelease(key->ref);
+		key->ref = NULL;
+	}
+	volatile uint8_t *bytes = key->b;
+	for (size_t i = 0; i < sizeof(key->b); i++) {
+		bytes[i] = 0;
+	}
+	delete key;
+}
 
 static void set_encrypt_key(const unsigned char *handle, const int bits, KEY *key)
 {

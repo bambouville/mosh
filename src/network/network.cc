@@ -371,6 +371,9 @@ Connection::Connection( const char *key_str, const char *ip, const char *port ) 
     RTTVAR( 500 ),
     send_error()
 {
+  /* Crypto::Session has already expanded the key into its AES context. The
+     client never calls get_key(), so retain no redundant raw bootstrap key. */
+  key.clear();
   setup();
 
   /* associate socket with remote host and port */

@@ -216,6 +216,7 @@ namespace Network {
 
     std::string port( void ) const;
     string get_key( void ) const { return key.printable_key(); }
+    bool retains_raw_key_material( void ) const { return key.has_key_material(); }
     bool get_has_remote_addr( void ) const { return has_remote_addr; }
 
     uint64_t timeout( void ) const;

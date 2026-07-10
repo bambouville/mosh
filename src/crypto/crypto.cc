@@ -46,6 +46,52 @@
 
 using namespace Crypto;
 
+namespace {
+
+/* Volatile writes prevent secret erasure from being optimized away. */
+void secure_zero( void *data, size_t len )
+{
+  volatile unsigned char *bytes = static_cast<volatile unsigned char *>( data );
+  for ( size_t i = 0; i < len; i++ ) {
+    bytes[ i ] = 0;
+  }
+}
+
+class SensitiveBufferScopeClear {
+private:
+  void *data;
+  size_t len;
+  bool active;
+
+public:
+  SensitiveBufferScopeClear( void *s_data, size_t s_len )
+    : data( s_data ), len( s_len ), active( true ) {}
+  ~SensitiveBufferScopeClear()
+  {
+    if ( active ) {
+      secure_zero( data, len );
+    }
+  }
+  void dismiss( void ) { active = false; }
+};
+
+class SensitiveStringScopeClear {
+private:
+  std::string &value;
+
+public:
+  explicit SensitiveStringScopeClear( std::string &s_value ) : value( s_value ) {}
+  ~SensitiveStringScopeClear()
+  {
+    if ( !value.empty() ) {
+      secure_zero( &value[ 0 ], value.size() );
+    }
+    value.clear();
+  }
+};
+
+} // namespace
+
 long int myatoi( const char *str )
 {
   char *end;
@@ -107,13 +153,25 @@ AlignedBuffer::AlignedBuffer( size_t len, const char *data )
   }
 }
 
+AlignedBuffer::~AlignedBuffer()
+{
+  if ( m_data != NULL ) {
+    secure_zero( m_data, m_len );
+  }
+  free( m_allocated );
+}
+
 Base64Key::Base64Key( string printable_key )
 {
+  secure_zero( key, sizeof( key ) );
+  SensitiveBufferScopeClear clear_key_on_throw( key, sizeof( key ) );
+  SensitiveStringScopeClear clear_printable_key( printable_key );
   if ( printable_key.length() != 22 ) {
     throw CryptoException( "Key must be 22 letters long." );
   }
 
   string base64 = printable_key + "==";
+  SensitiveStringScopeClear clear_base64( base64 );
 
   size_t len = 16;
   if ( !base64_decode( base64.data(), 24, key, &len ) ) {
@@ -125,44 +183,74 @@ Base64Key::Base64Key( string printable_key )
   }
 
   /* to catch changes after the first 128 bits */
-  if ( printable_key != this->printable_key() ) {
+  string canonical_key = this->printable_key();
+  SensitiveStringScopeClear clear_canonical_key( canonical_key );
+  if ( printable_key != canonical_key ) {
     throw CryptoException( "Base64 key was not encoded 128-bit key." );
   }
+  clear_key_on_throw.dismiss();
 }
 
 Base64Key::Base64Key()
 {
+  secure_zero( key, sizeof( key ) );
+  SensitiveBufferScopeClear clear_key_on_throw( key, sizeof( key ) );
   PRNG().fill( key, sizeof( key ) );
+  clear_key_on_throw.dismiss();
 }
 
 Base64Key::Base64Key(PRNG &prng)
 {
+  secure_zero( key, sizeof( key ) );
+  SensitiveBufferScopeClear clear_key_on_throw( key, sizeof( key ) );
   prng.fill( key, sizeof( key ) );
+  clear_key_on_throw.dismiss();
+}
+
+Base64Key::~Base64Key()
+{
+  clear();
+}
+
+void Base64Key::clear( void )
+{
+  secure_zero( key, sizeof( key ) );
+}
+
+bool Base64Key::has_key_material( void ) const
+{
+  unsigned char combined = 0;
+  for ( size_t i = 0; i < sizeof( key ); i++ ) {
+    combined |= key[ i ];
+  }
+  return combined != 0;
 }
 
 string Base64Key::printable_key( void ) const
 {
-  char base64[ 24 ];
+  char base64[ 24 ] = {};
+  SensitiveBufferScopeClear clear_base64( base64, sizeof( base64 ) );
   
   base64_encode( key, 16, base64, 24 );
 
   if ( (base64[ 23 ] != '=')
        || (base64[ 22 ] != '=') ) {
-    throw CryptoException( string( "Unexpected output from base64_encode: " ) + string( base64, 24 ) );
+    throw CryptoException( "Unexpected output from base64_encode." );
   }
 
   base64[ 22 ] = 0;
-  return string( base64 );
+  string result( base64 );
+  return result;
 }
 
-Session::Session( Base64Key s_key )
-  : key( s_key ), ctx_buf( ae_ctx_sizeof() ),
+Session::Session( const Base64Key &s_key )
+  : ctx_buf( ae_ctx_sizeof() ),
     ctx( (ae_ctx *)ctx_buf.data() ), blocks_encrypted( 0 ),
     plaintext_buffer( RECEIVE_MTU ),
     ciphertext_buffer( RECEIVE_MTU ),
     nonce_buffer( Nonce::NONCE_LEN )
 {
-  if ( AE_SUCCESS != ae_init( ctx, key.data(), 16, 12, 16 ) ) {
+  if ( AE_SUCCESS != ae_init( ctx, s_key.data(), 16, 12, 16 ) ) {
     throw CryptoException( "Could not initialize AES-OCB context." );
   }
 }

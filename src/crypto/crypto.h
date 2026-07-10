@@ -75,9 +75,7 @@ namespace Crypto {
   public:
     AlignedBuffer( size_t len, const char *data = NULL );
 
-    ~AlignedBuffer() {
-      free( m_allocated );
-    }
+    ~AlignedBuffer();
 
     char * data( void ) const { return m_data; }
     size_t len( void )  const { return m_len;  }
@@ -96,8 +94,12 @@ namespace Crypto {
     Base64Key(); /* random key */
     Base64Key(PRNG &prng);
     Base64Key( string printable_key );
+    ~Base64Key();
+    void clear( void );
+    bool has_key_material( void ) const;
     string printable_key( void ) const;
     unsigned char *data( void ) { return key; }
+    const unsigned char *data( void ) const { return key; }
   };
 
   class Nonce {
@@ -133,7 +135,6 @@ namespace Crypto {
   
   class Session {
   private:
-    Base64Key key;
     AlignedBuffer ctx_buf;
     ae_ctx *ctx;
     uint64_t blocks_encrypted;
@@ -147,7 +148,7 @@ namespace Crypto {
     /* Overhead (not counting the nonce, which is handled by network transport) */
     static const int ADDED_BYTES = 16 /* final OCB block */;
 
-    Session( Base64Key s_key );
+    Session( const Base64Key &s_key );
     ~Session();
     
     const string encrypt( const Message & plaintext );

@@ -96,6 +96,7 @@ namespace Network {
 
     std::string port( void ) const { return connection.port(); }
     string get_key( void ) const { return connection.get_key(); }
+    bool retains_raw_key_material( void ) const { return connection.retains_raw_key_material(); }
 
     MyState &get_current_state( void ) { return sender.get_current_state(); }
     void set_current_state( const MyState &x ) { sender.set_current_state( x ); }
