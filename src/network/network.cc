@@ -169,6 +169,16 @@ Connection::Socket::Socket( int family )
     //    perror( "setsockopt( IP_TOS )" );
   }
 
+  /* Tessera: a socket the system reclaims (iOS does so while the app is
+     suspended) fails every send with EPIPE. Report that as an error instead of
+     raising SIGPIPE, which would end the whole client process. */
+#ifdef SO_NOSIGPIPE
+  int nosigpipe = 1;
+  if ( setsockopt( _fd, SOL_SOCKET, SO_NOSIGPIPE, &nosigpipe, sizeof nosigpipe ) < 0 ) {
+    /* The per-process SIGPIPE disposition still applies. */
+  }
+#endif
+
   /* request explicit congestion notification on received datagrams */
 #ifdef HAVE_IP_RECVTOS
   int tosflag = true;
@@ -407,14 +417,21 @@ void Connection::send( const string & s )
   ssize_t bytes_sent = sendto( sock(), p.data(), p.size(), MSG_DONTWAIT,
 			       &remote_addr.sa, remote_addr_len );
 
+  bool socket_reclaimed = false;
   if ( bytes_sent != static_cast<ssize_t>( p.size() ) ) {
+    const int saved_errno = errno;
     /* Make sendto() failure available to the frontend. */
     send_error = "sendto: ";
-    send_error += strerror( errno );
+    send_error += strerror( saved_errno );
 
-    if ( errno == EMSGSIZE ) {
+    if ( saved_errno == EMSGSIZE ) {
       MTU = DEFAULT_SEND_MTU; /* payload MTU of last resort */
     }
+
+    /* Tessera: the system took this socket away; only a new one can reach
+       the server, however recently the last round trip succeeded. */
+    socket_reclaimed = ( saved_errno == EPIPE ) || ( saved_errno == ENOTCONN )
+      || ( saved_errno == EBADF );
   }
 
   uint64_t now = timestamp();
@@ -424,8 +441,9 @@ void Connection::send( const string & s )
       fprintf( stderr, "Server now detached from client.\n" );
     }
   } else { /* client */
-    if ( ( now - last_port_choice > PORT_HOP_INTERVAL )
-	 && ( now - last_roundtrip_success > PORT_HOP_INTERVAL ) ) {
+    if ( socket_reclaimed
+	 || ( ( now - last_port_choice > PORT_HOP_INTERVAL )
+	      && ( now - last_roundtrip_success > PORT_HOP_INTERVAL ) ) ) {
       hop_port();
     }
   }
@@ -434,19 +452,28 @@ void Connection::send( const string & s )
 string Connection::recv( void )
 {
   assert( !socks.empty() );
-  for ( std::deque< Socket >::const_iterator it = socks.begin();
-	it != socks.end();
-	it++ ) {
+  std::deque< Socket >::const_iterator it = socks.begin();
+  while ( it != socks.end() ) {
     string payload;
     try {
       payload = recv_one( it->fd());
     } catch ( NetworkException & e ) {
       if ( (e.the_errno == EAGAIN)
 	   || (e.the_errno == EWOULDBLOCK) ) {
+	it++;
 	continue;
-      } else {
-	throw;
       }
+      /* Tessera: a socket the system reclaimed fails every read, and the
+	 oldest socket is read first, so it would hide the replies arriving
+	 on the new one. Close a failed oldest socket and read on; the newest
+	 socket still reports its own errors. Only the front is dropped, so
+	 no other socket changes descriptor. */
+      if ( !server && it == socks.begin() && socks.size() > 1 ) {
+	socks.pop_front();
+	it = socks.begin();
+	continue;
+      }
+      throw;
     }
 
     /* succeeded */

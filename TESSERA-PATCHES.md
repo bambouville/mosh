@@ -54,6 +54,26 @@ state instead of an optimistic unacknowledged one. This prevents the peer from
 discarding every shutdown packet and never learning that the session ended.
 *(Compiled into the Tessera app.)*
 
+### `src/network/network.cc` — survive sockets the system reclaims
+
+iOS may reclaim ("defunct") the sockets of a suspended app. XNU then fails a
+send on such a socket with `EPIPE`, raising `SIGPIPE` unless the socket has
+`SO_NOSIGPIPE`, and fails a receive with `ENOTCONN`. Upstream's client frontend
+(`stmclient.cc`) handles `SIGPIPE`, but Tessera builds only the protocol
+layers, so the first send after a long suspension ended the whole app.
+
+- `Connection::Socket` sets `SO_NOSIGPIPE` where the platform has it, so a
+  dead socket reports `EPIPE` instead of raising `SIGPIPE`.
+- `Connection::send`: a client whose send fails with `EPIPE`, `ENOTCONN` or
+  `EBADF` hops to a new port at once, instead of waiting until
+  `PORT_HOP_INTERVAL` has passed without a round trip.
+- `Connection::recv`: a client whose oldest socket fails a read with anything
+  but `EAGAIN` closes that socket and reads the newer ones. It used to throw
+  first, hiding the server's replies to the new port until enough hops pushed
+  the dead socket out (about 100 s).
+
+*(Compiled into the Tessera app.)*
+
 ### `src/frontend/mosh-server.cc` — whitespace / formatting only
 
 Reflowed the `serve()` signature across multiple lines and removed stray
